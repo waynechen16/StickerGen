@@ -1,4 +1,5 @@
 runtime: nodejs20
+default_expiration: "0s"
 
 handlers:
 - url: /(.*\..+)$

@@ -62,7 +62,7 @@ function App() {
         fontSize: '0.8rem', borderTop: '1px solid var(--border-color)',
         backgroundColor: 'var(--bg-secondary)'
       }}>
-        {lang === 'en' ? 'Version v1.0.0 | Disclaimer: Images are processed entirely locally in your browser and are not uploaded to any server.' : '版本 v1.0.0 | 免責聲明：本工具純屬本機安全運行，所有的影像處理皆在您的瀏覽器端完成，絕不會上傳或儲存任何圖片。'}
+        {lang === 'en' ? 'Version v1.1.0 | Google AdSense Removed.' : '版本 v1.1.0 | 已移除廣告代碼。純本機安全運行，不會上傳圖片。'}
       </footer>
     </div>
   );
