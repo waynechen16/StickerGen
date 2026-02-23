@@ -1,0 +1,204 @@
+import { useState, useCallback, useEffect } from 'react';
+
+export interface ProcessorState {
+  imageFile: File | null;
+  imageUrl: string | null;
+  tolerance: number;
+  thickness: number;
+  targetColor: { r: number; g: number; b: number } | null;
+  targetPos: { x: number; y: number } | null;
+  processedDataUrl: string | null;
+  isProcessing: boolean;
+}
+
+export const useImageProcessor = () => {
+  const [state, setState] = useState<ProcessorState>({
+    imageFile: null,
+    imageUrl: null,
+    tolerance: 15,
+    thickness: 15,
+    targetColor: null,
+    targetPos: null,
+    processedDataUrl: null,
+    isProcessing: false
+  });
+
+  const uploadImage = useCallback((file: File) => {
+    const url = URL.createObjectURL(file);
+    setState((prev) => ({
+      ...prev,
+      imageFile: file,
+      imageUrl: url,
+      targetColor: null,
+      targetPos: null,
+      processedDataUrl: null
+    }));
+  }, []);
+
+  const setTolerance = useCallback((tolerance: number) => {
+    setState((prev) => ({ ...prev, tolerance }));
+  }, []);
+
+  const setThickness = useCallback((thickness: number) => {
+    setState((prev) => ({ ...prev, thickness }));
+  }, []);
+
+  const pickColor = useCallback((x: number, y: number, canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    if (pixel[3] === 0) return;
+    
+    setState((prev) => ({
+      ...prev,
+      targetColor: { r: pixel[0], g: pixel[1], b: pixel[2] },
+      targetPos: { x, y }
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!state.imageUrl) return;
+
+    const process = async () => {
+      setState(p => ({ ...p, isProcessing: true }));
+
+      try {
+        const img = new Image();
+        img.src = state.imageUrl!;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+
+        const pad = state.thickness;
+        const width = img.width + pad * 2;
+        const height = img.height + pad * 2;
+
+        const cleanCanvas = document.createElement('canvas');
+        cleanCanvas.width = img.width;
+        cleanCanvas.height = img.height;
+        const cleanCtx = cleanCanvas.getContext('2d', { willReadFrequently: true });
+        if (!cleanCtx) return;
+
+        cleanCtx.drawImage(img, 0, 0);
+
+        // Perform magic wand (flood fill) to only remove contiguous background
+        if (state.targetColor && state.targetPos) {
+          const imgData = cleanCtx.getImageData(0, 0, cleanCanvas.width, cleanCanvas.height);
+          const data = imgData.data;
+          const { r: tr, g: tg, b: tb } = state.targetColor;
+          
+          const maxDist = 441.67;
+          const toleranceThreshold = (state.tolerance / 100) * maxDist;
+
+          const w = cleanCanvas.width;
+          const h = cleanCanvas.height;
+          
+          const visited = new Uint8Array(w * h);
+          const stackX = new Int32Array(w * h);
+          const stackY = new Int32Array(w * h);
+          let stackPtr = 0;
+
+          stackX[stackPtr] = state.targetPos.x;
+          stackY[stackPtr] = state.targetPos.y;
+          stackPtr++;
+
+          while (stackPtr > 0) {
+            stackPtr--;
+            const x = stackX[stackPtr];
+            const y = stackY[stackPtr];
+            
+            if (x < 0 || x >= w || y < 0 || y >= h) continue;
+            const idx = y * w + x;
+            if (visited[idx]) continue;
+            visited[idx] = 1;
+
+            const pIdx = idx * 4;
+            const a = data[pIdx + 3];
+            if (a === 0) continue;
+
+            const r = data[pIdx];
+            const g = data[pIdx + 1];
+            const b = data[pIdx + 2];
+
+            const dist = Math.sqrt(Math.pow(r - tr, 2) + Math.pow(g - tg, 2) + Math.pow(b - tb, 2));
+
+            if (dist <= toleranceThreshold) {
+              data[pIdx + 3] = 0;
+              
+              stackX[stackPtr] = x + 1; stackY[stackPtr] = y; stackPtr++;
+              stackX[stackPtr] = x - 1; stackY[stackPtr] = y; stackPtr++;
+              stackX[stackPtr] = x;     stackY[stackPtr] = y + 1; stackPtr++;
+              stackX[stackPtr] = x;     stackY[stackPtr] = y - 1; stackPtr++;
+            }
+          }
+          cleanCtx.putImageData(imgData, 0, 0);
+        }
+
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = width;
+        finalCanvas.height = height;
+        const finalCtx = finalCanvas.getContext('2d');
+        if (!finalCtx) return;
+
+        if (state.thickness > 0) {
+          // Increase steps dramatically based on circumference to ensure a smooth, continuous outline
+          // This stops the "circle bubble noise" from appearing.
+          const steps = Math.max(36, Math.ceil(pad * 2 * Math.PI)); 
+          for (let i = 0; i < steps; i++) {
+            const angle = (i * Math.PI * 2) / steps;
+            const dx = Math.cos(angle) * pad;
+            const dy = Math.sin(angle) * pad;
+            finalCtx.drawImage(cleanCanvas, pad + dx, pad + dy);
+          }
+
+          finalCtx.globalCompositeOperation = 'source-in';
+          finalCtx.fillStyle = '#FFFFFF';
+          finalCtx.fillRect(0, 0, width, height);
+          
+          finalCtx.globalCompositeOperation = 'source-over';
+        }
+
+        finalCtx.drawImage(cleanCanvas, pad, pad);
+
+        setState(p => ({ ...p, processedDataUrl: finalCanvas.toDataURL('image/png'), isProcessing: false }));
+
+      } catch (err) {
+        console.error('Image processing failed:', err);
+        setState(p => ({ ...p, isProcessing: false }));
+      }
+    };
+
+    process();
+  }, [state.imageUrl, state.targetColor, state.targetPos, state.tolerance, state.thickness]);
+
+  const reset = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      tolerance: 15,
+      thickness: 15,
+      targetColor: null,
+      targetPos: null,
+      processedDataUrl: null
+    }));
+  }, []);
+
+  const downloadImage = useCallback(() => {
+    if (state.processedDataUrl) {
+      const link = document.createElement('a');
+      link.download = `sticker_${Date.now()}.png`;
+      link.href = state.processedDataUrl;
+      link.click();
+    }
+  }, [state.processedDataUrl]);
+
+  return {
+    state,
+    uploadImage,
+    setTolerance,
+    setThickness,
+    pickColor,
+    reset,
+    downloadImage,
+  };
+};

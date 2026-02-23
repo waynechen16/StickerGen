@@ -1,0 +1,111 @@
+import React, { ChangeEvent } from 'react';
+
+interface ControlPanelProps {
+  onUpload: (file: File) => void;
+  tolerance: number;
+  onToleranceChange: (val: number) => void;
+  thickness: number;
+  onThicknessChange: (val: number) => void;
+  onReset: () => void;
+  onDownload: () => void;
+  hasImage: boolean;
+}
+
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+  onUpload,
+  tolerance,
+  onToleranceChange,
+  thickness,
+  onThicknessChange,
+  onReset,
+  onDownload,
+  hasImage,
+}) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUpload(file);
+    }
+  };
+
+  return (
+    <aside className="sidebar">
+      <h2>StickerGen</h2>
+      <p style={{ marginBottom: '24px' }}>Remove background & add white outline.</p>
+
+      <div className="input-group file-upload-wrapper">
+        <label>Upload Image</label>
+        <button className="upload-button" type="button">
+          Click or Drag Image Here
+          <br /><small>(JPG, PNG, WebP)</small>
+        </button>
+        <input 
+          type="file" 
+          accept="image/jpeg, image/png, image/webp" 
+          onChange={handleFileChange} 
+        />
+      </div>
+
+      <div className="input-group">
+        <label>
+          Tolerance <span>{tolerance}</span>
+        </label>
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          value={tolerance} 
+          onChange={(e) => onToleranceChange(Number(e.target.value))}
+          disabled={!hasImage}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>
+          Outline Thickness <span>{thickness}px</span>
+        </label>
+        <input 
+          type="range" 
+          min="0" 
+          max="50" 
+          value={thickness} 
+          onChange={(e) => onThicknessChange(Number(e.target.value))}
+          disabled={!hasImage}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', width: '100%' }}>
+        <button 
+          className="btn-primary" 
+          style={{ 
+            backgroundColor: 'transparent', 
+            borderColor: 'var(--border-color)', 
+            color: 'var(--text-primary)' 
+          }}
+          onClick={onReset}
+          disabled={!hasImage}
+        >
+          回復
+        </button>
+        <button 
+          className="btn-primary" 
+          style={{ flex: 1 }}
+          onClick={onDownload}
+          disabled={!hasImage}
+        >
+          下載 (Download)
+        </button>
+      </div>
+
+      <div className="instruction-panel">
+        <strong>How to use:</strong>
+        <ul>
+          <li>Upload your image</li>
+          <li>Click the preview to pick the background color to remove</li>
+          <li>Adjust tolerance to clean the edges</li>
+          <li>Adjust thickness for the white outline</li>
+        </ul>
+      </div>
+    </aside>
+  );
+};
