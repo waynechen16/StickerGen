@@ -348,8 +348,22 @@ export const useImageProcessor = () => {
       link.download = `sticker_${Date.now()}.png`;
       link.href = state.processedDataUrl;
       link.click();
+
+      // Log offline usage, silently ignoring errors if backend isn't running
+      fetch('http://localhost:3000/api/log-usage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'DOWNLOAD_STICKER',
+          details: { hasBackgroundRemoved: !!state.targetColor }
+        })
+      }).catch(() => {
+        // Silently ignore if starting without Node backend or on GCP
+      });
     }
-  }, [state.processedDataUrl]);
+  }, [state.processedDataUrl, state.targetColor]);
 
   return {
     state,
